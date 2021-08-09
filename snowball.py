@@ -3,91 +3,81 @@ import math
 
 import numpy as np
 import pickle as pk
-from tqdm import tqdm
-
-
-class Trend:
-    strike_out = False
-    strike_in = False
-    duration_ratio = 1.0
-    ini_price = 1.0
-    end_price = 1.0
-    return_rate = 1.0
-
-    def __init__(self, sout, sin, return_rate):
-        self.strike_out = sout
-        self.strike_in = sin
-        self.return_rate = return_rate
+import scipy.optimize as opt
 
 
 class SnowBall:
 
     def __init__(self, s0, r, sigma, t, in_price, out_price):
+        self.n_days_per_month = 21
+        self.n_days_per_year = 252
+        self.knock_out_obs_days = np.arange(21, 253, self.n_days_per_month, dtype=int)
+
         self.s0 = s0
         self.r = r  # riskless annual interest rate
         self.v = sigma
         self.t = t  # duration in year
+        self.t_days = t * self.n_days_per_year  # duration in days
         self.p_knock_in = in_price
         self.p_knock_out = out_price
-        self.q = 0.0  # dividend
-        self.n_days_per_month = 21
-        self.n_days_per_year = 252
-        self.knock_out_obs_days = np.arange(21, 253, self.n_days_per_month, dtype=int)
+
         self.margin_rate = 1.0
+        self.q = 0.0  # dividend
 
     def gen_trends_mc(self, rand):
         mu = self.r - self.q
-        dS = (mu - 0.5 * self.v ** 2) * 1.0 / self.n_days_per_year + self.v * np.sqrt(1.0 / self.n_days_per_year) * rand
-
-        dS = np.insert(dS, 0, values=np.zeros(rand.shape[0]), axis=1)  # S0
-        Sr = np.cumsum(dS, axis=1)
-        S_all = self.s0 * np.exp(Sr)
+        d_t = 1.0 / self.n_days_per_year
+        d_ln_S = (mu - 0.5 * self.v ** 2) * d_t + self.v * np.sqrt(d_t) * rand
+        d_ln_S = np.insert(d_ln_S, 0, values=np.zeros(rand.shape[0]), axis=1)  # S0
+        ln_S = np.cumsum(d_ln_S, axis=1)
+        S_all = self.s0 * np.exp(ln_S)
 
         return S_all
 
     def classify_trends(self, trends):
-        knock_out_bools = trends[:, self.knock_out_obs_days] >= self.p_knock_out
-        knock_in_bools = trends <= self.p_knock_in
+        # knock out
+        kout_bool_matrix = trends[:, self.knock_out_obs_days] >= self.p_knock_out
+        kout_flags = np.any(kout_bool_matrix, axis=1)
+        kout_days_index = kout_bool_matrix[kout_flags, :].argmax(axis=1) if kout_flags.any() else []
+        kout_days = self.knock_out_obs_days[kout_days_index]
 
-        knock_out_bool = np.any(knock_out_bools, axis=1)
-        knock_in_bool = np.any(knock_in_bools, axis=1)
+        # knock in not out: break even or loss
+        kin_bool_matrix = trends <= self.p_knock_in
+        kin_flags = np.any(kin_bool_matrix, axis=1)
+        kin_nkout_flags = kin_flags & ~kout_flags
+        kin_nkout_loss_flags = (trends[:, self.t_days] < self.s0) & kin_nkout_flags
+        n_kin_nkout_even = kin_nkout_flags.sum() - kin_nkout_loss_flags.sum()
+        kin_nkout_loss_end_prices = trends[kin_nkout_loss_flags, self.t_days]
+        kin_nkout_loss_rate = kin_nkout_loss_end_prices / self.s0 - 1
 
+        # not knock in or out
+        nkin_nkout_flags = ~kin_flags & ~kout_flags
+        n_nkin_nkout = nkin_nkout_flags.sum()
 
-        strike_out_duration_ratio = np.array([], dtype=float)
-        strike_in_loss_trends = np.array([], dtype=float)
-        n_strike_in_break_even_trends = 0
-        n_stable_trends = 0
+        return kout_days, n_kin_nkout_even, kin_nkout_loss_rate, n_nkin_nkout
 
-        for j in tqdm(range(0, len(trends))):
-            trend = trends[j]
-            strike_in = False
+    def valuate(self, coupon_rate, kout_days, n_kin_nkout_even, kin_nkout_loss_rate, n_nkin_nkout):
+        # knock out
+        kout_duration_ration = kout_days / self.n_days_per_year
+        pv_kout = (self.s0 * coupon_rate * kout_duration_ration * np.exp(-self.r * kout_duration_ration)).sum()
 
-            for j in range(1, len(trend)):
-                if (j % self.n_days_per_month) % self.knock_out_obs_days == 0 and trend[j] >= self.p_knock_out:
-                    strike_out_duration_ratio = np.append(strike_out_duration_ratio, [j / self.n_days_per_year])
-                    continue
-                if trend[j] <= self.p_knock_in:
-                    strike_in = True
+        # # knock in: break even
+        # pv_kin_even = self.s0 * (-1 + np.exp(-self.r * self.t)) * n_kin_nkout_even
 
-            if not strike_in:
-                n_stable_trends += 1
-            elif trend[-1] >= trend[0]:
-                n_strike_in_break_even_trends += 1
-            else:
-                strike_in_loss_trends = np.append(strike_in_loss_trends, [trend[-1] / trend[0] - 1])
+        # knock in: loss
+        pv_kin_loss = (self.s0 * kin_nkout_loss_rate * np.exp(-self.r * self.t)).sum()
 
-        return strike_out_duration_ratio, strike_in_loss_trends, n_stable_trends
+        # not knock in or out
+        pv_nkin_nkout = self.s0 * coupon_rate * self.t * np.exp(-self.r * self.t) * n_nkin_nkout
 
-    def valuate(self, n_trend, coupon_rate, strike_in_trends, strike_out_loss_trends, n_stable_trends):
-        loss = strike_out_loss_trends.sum()
-        value = n_stable_trends * coupon_rate + strike_out_loss_trends.sum() + strike_in_trends.sum() * coupon_rate
-        value *= self.s0 * np.exp(-self.r * self.t)
-        return value / n_trend
+        return pv_kout + pv_kin_loss + pv_nkin_nkout
 
     def solve_mc(self, rand_fp):
         rand = np.array(pk.load(open(rand_fp, 'rb')))
-        rand = rand[:10000]
         trends = self.gen_trends_mc(rand)
-        strike_in_trends, strike_out_loss_trends, n_stable_trends = self.classify_trends(trends)
-        value = self.valuate(10000, 0.1, strike_in_trends, strike_out_loss_trends, n_stable_trends)
-        print(value)
+
+        kout_days, n_kin_nkout_even, kin_nkout_loss_rate, n_nkin_nkout = self.classify_trends(trends)
+        coupon = opt.newton(self.valuate, 0.2, args=(kout_days, n_kin_nkout_even, kin_nkout_loss_rate, n_nkin_nkout))
+
+        print(coupon)
+        print(self.valuate(coupon, kout_days, n_kin_nkout_even, kin_nkout_loss_rate, n_nkin_nkout))

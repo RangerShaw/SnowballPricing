@@ -75,14 +75,13 @@ class Vanilla:
         return value
 
     def delta(self, **kwargs):
-        '''
+        """
         -------------------------------------------------
         提供3个可变参数：s、v、t，对于没有指定的参数，将使用定义类时确定的参数
         t的类型与定义类时使用的相同
         eg: delta = Vanilla.delta(s=np.array([0.9,1,1.1]), v=0.21)
         若指定参数中有向量，则向量的长度需相同
-
-        '''
+        """
         try:
             s_greek = kwargs['s']
         except:
