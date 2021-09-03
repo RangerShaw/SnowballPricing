@@ -2,7 +2,16 @@
 from snowball import SnowBall
 
 
-if __name__ == '__main__':
+def get_coupon_rate():
     fp = 'data/QuasiRand.pickle'
-    sb = SnowBall(1.0, 0.036, 0.3, 1, 0.75, 1.0)
-    sb.solve_mc(fp)
+    sb = SnowBall(100.0, 0.036, 0.3, 1, 75, 100)
+    return sb.find_coupon_rate(fp)
+
+
+def get_beta(coupon_rate):
+    pass
+
+
+if __name__ == '__main__':
+    coupon_rate = get_coupon_rate()
+    # coupon_rate = 0.23953
