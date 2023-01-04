@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
-from snowball import SnowBall
+# from snowball import SnowBall
+from small_snowball import SmallSnowBall
 
 
-def get_coupon_rate():
+# def get_sb_coupon_rate():
+#     fp = 'data/QuasiRand.pickle'
+#     sb = SnowBall(100.0, 0.036, 0.3, 1, 75, 100)
+#     return sb.find_coupon_rate(fp)
+
+
+def get_smallsb_coupon_rate():
     fp = 'data/QuasiRand.pickle'
-    sb = SnowBall(100.0, 0.036, 0.3, 1, 75, 100)
+    sb = SmallSnowBall(100.0, 0.036, 0.17, 1, 100, 0.005)
     return sb.find_coupon_rate(fp)
 
 
-def get_beta(coupon_rate):
-    pass
-
-
 if __name__ == '__main__':
-    coupon_rate = get_coupon_rate()
-    # coupon_rate = 0.23953
+    # coupon_rate = get_sb_coupon_rate()
+    smallsnowball_coupon_rate = get_smallsb_coupon_rate()

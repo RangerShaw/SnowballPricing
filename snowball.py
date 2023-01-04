@@ -59,7 +59,7 @@ class SnowBall:
         # knock out
         pv_kout = np.sum((self.s0 * coupon_rate * kout_period_in_yr * np.exp(-self.r * kout_period_in_yr)))
 
-        # # knock in: break even
+        # knock in: break even
         # pv_kin_even = self.s0 * (-1 + np.exp(-self.r * self.t)) * n_kin_nkout_even
 
         # knock in: loss
