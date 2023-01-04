@@ -260,7 +260,7 @@ class Snowball:
                 delta = np.concatenate((delta0, delta1))
 
                 cf = np.max([0, - SAll[i, -1] / SAll[i, 0] + 1]) + self.margin * (
-                            np.exp(self.r * kox / self.Ndays1year) - 1)
+                        np.exp(self.r * kox / self.Ndays1year) - 1)
                 cf -= delta[0] * SAll[i, 0] * np.exp(self.r * DeltaNoKI.index[0])
                 cf -= (np.diff(delta) * SAll[i, 1:kox + 1] * np.exp(
                     self.r * np.array(DeltaNoKI.index[1:kox + 1]))).sum()

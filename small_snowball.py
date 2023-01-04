@@ -19,7 +19,7 @@ class SmallSnowBall:
         self.s_kout = s_kout  # 敲出价
         self.premium = premium  # 期权费，0.01表示名义本金的1%
 
-        self.q = 0.0  # dividend
+        self.q = 0.047  # dividend
 
     def gen_trends_mc(self, rand_fp):
         """从指定的文件中读入并生成MC路径"""
@@ -50,16 +50,26 @@ class SmallSnowBall:
     def valuate(self, coupon_rate, kout_period_in_yr, n_paths):
         principal = self.s0
 
-        # knock out
         coupons = principal * coupon_rate * kout_period_in_yr * np.exp(-self.r * kout_period_in_yr)
         pv_kout = np.sum(coupons)
 
         total_premium = n_paths * principal * self.premium
         return pv_kout - total_premium
 
+    def valuate_due(self, coupon_rate, kout_period_in_yr, n_paths):
+        principal = self.s0
+
+        # knock out
+        coupons = principal * coupon_rate * kout_period_in_yr * np.exp(-self.r * kout_period_in_yr)
+        kout_premium = principal * self.premium * np.exp(-self.r * kout_period_in_yr)
+        pv_kout = np.sum(coupons - kout_premium)
+
+        nkout_premium = (n_paths - len(kout_period_in_yr)) * principal * self.premium * np.exp(-self.r * self.t)
+        return pv_kout - nkout_premium
+
     def find_coupon_rate(self, rand_fp):
         trends = self.gen_trends_mc(rand_fp)  # 读入并生成MC路径
         kout_period_in_yr, n_nkout = self.classify_trends(trends)  # 路径分类
-        coupon = opt.newton(self.valuate, 0.1, args=(kout_period_in_yr, len(trends)))
-        print(f"敲出票息率：{coupon:0.6%}")
+        coupon = opt.newton(self.valuate_due, 0.05, args=(kout_period_in_yr, len(trends)))
+        print(f"敲出票息率：{coupon:.6%}")
         return coupon
