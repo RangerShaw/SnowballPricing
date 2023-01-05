@@ -10,15 +10,15 @@ class Digital:
         self.n_days_per_mth = 21
         self.n_days_per_yr = 252
         self.kout_obs_days = np.arange(self.n_days_per_mth, self.n_days_per_yr + 1, self.n_days_per_mth, dtype=int)
+        self.paths = None
 
         self.s0 = s0  # 期初价，一般为100
         self.r = r  # risk-free annual interest rate
         self.v = sigma  # 波动率
         self.t = t  # 存续期，单位为年，默认为1年
         self.t_days = t * self.n_days_per_yr  # period in day
-        self.K = K  # 敲出价
+        self.K = K  # 行权价
         self.premium = premium  # 期权费，0.01表示名义本金的1%
-
         self.q = 0.03644  # dividend
 
     def gen_trends_mc(self, rand_fp):
@@ -60,11 +60,11 @@ class Digital:
         return coupons - premium
 
     def find_coupon_rate(self, rand_fp):
-        trends = self.gen_trends_mc(rand_fp)  # 读入并生成MC路径
-        n_kout, n_nkout = self.classify_trends(trends)  # 路径分类
-        print(f"总路径数：{len(trends)}")
-        print(f"获得收益路径数：{n_kout}，占比{n_kout / len(trends):.2}")
+        self.paths = self.gen_trends_mc(rand_fp)  # 读入并生成MC路径
+        n_kout, n_nkout = self.classify_trends(self.paths)  # 路径分类
+        print(f"总路径数：{len(self.paths)}，获得收益路径数：{n_kout}，占比{n_kout / len(self.paths):.3}")
         # print(f"未获得收益路径数：{n_nkout}")
         coupon = opt.newton(self.valuate_due, 0.05, args=(n_kout, n_nkout))
         # print(f"敲出票息率：{coupon:.6%}")
         return coupon
+
