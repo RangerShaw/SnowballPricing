@@ -2,6 +2,7 @@
 import numpy as np
 import pickle as pk
 import scipy.optimize as opt
+import pandas as pd
 
 
 class SmallSnowBall:
@@ -94,27 +95,68 @@ class SmallSnowBall:
         return pv_ratio
 
 
+N_DAYS_A_YEAR = 365
+N_MC_PATHS = 100000
+
+
 class SmallsbM2M:
 
     def __init__(self):
-        pass
+        trade_dates = pd.read_csv('trade_days.csv', encoding='utf-8', parse_dates=['trading_days']).values
+        self.trade_dates = np.array([pd.Timestamp(v) for v in trade_dates.flat])
+        self.date_map = {v: index[0] for index, v in np.ndenumerate(self.trade_dates)}
 
     def gen_trends_mc(self, days, S0, r, q, v):
-        rand = np.random.randn(100000, days)
+        rand = np.random.randn(N_MC_PATHS, days)
         mu = r - q
         d_t = 1.0 / 252
         d_ln_S = (mu - 0.5 * v ** 2) * d_t + v * np.sqrt(d_t) * rand
         d_ln_S = np.insert(d_ln_S, 0, values=np.zeros(rand.shape[0]), axis=1)  # S0
         ln_S = np.cumsum(d_ln_S, axis=1)
         S_all = S0 * np.exp(ln_S)
-
         return S_all
 
-    def m2m_365(self, principle, s0, s_kout, funding, coupon_rate, r, q, v, today, obs_days, ops_day):
-        if 0 in obs_days and s0 >= s_kout:
-            pv = (coupon_rate - funding) * principle * ops_day / 365
-            print(f'M2M价值：{pv:.6%}')
-            return pv
+    def classify_path(self, paths, kout_obs_days, s_kout):
+        # knock out
+        kout_bool_matrix = paths[:, kout_obs_days] >= s_kout
+        kout_flags = np.any(kout_bool_matrix, axis=1)
+        kout_days_index = kout_bool_matrix[kout_flags, :].argmax(axis=1) if kout_flags.any() else []
+        kout_days = kout_obs_days[kout_days_index]
+        return kout_days_index
 
-        obs_days = obs_days[obs_days > 0]
-        paths = self.gen_trends_mc(obs_days[-1], s0, r, q, v)
+    def valuate(self, principal, coupon_rate, r, funding, kout_periods_yr, op_days, left_days):
+        # knock out
+        kout_disc_periods_yr = kout_periods_yr - (op_days / N_DAYS_A_YEAR)
+        kout_profits = principal * (coupon_rate - funding) * kout_periods_yr * np.exp(-r * kout_disc_periods_yr)
+        pv_kout = np.sum(kout_profits)
+
+        # not knock out
+        kin_disc_period_yr = left_days / N_DAYS_A_YEAR
+        nkout_losses = (N_MC_PATHS - len(kout_periods_yr)) * principal * funding * np.exp(-r * kin_disc_period_yr)
+        return (pv_kout - nkout_losses) / N_MC_PATHS
+
+    def m2m_365(self, principle, s1, s_kout, funding, coupon_rate, r, q, v, value_date, obs_dates, s_date, e_date):
+        op_days = (value_date - s_date).days
+        left_days = (e_date - value_date).days
+
+        # knock out immediately
+        if value_date in obs_dates and s1 >= s_kout:
+            return (coupon_rate - funding) * principle * op_days / N_DAYS_A_YEAR
+
+        obs_dates = obs_dates[obs_dates > value_date]
+
+        # no more observe day
+        if not obs_dates:
+            return -funding * principle * np.exp(-r * left_days / N_DAYS_A_YEAR)
+
+        value_date_t = self.date_map[value_date]
+        e_date_t = self.date_map[e_date]
+        obs_dates_t = np.vectorize(self.date_map.get)(obs_dates) - value_date_t
+        kout_days_map = np.array([d.days for d in obs_dates - s_date])
+
+        paths = self.gen_trends_mc(e_date_t - value_date_t, s1, r, q, v)
+        kout_dates_index_t = self.classify_path(paths, obs_dates_t, s_kout)
+        kout_periods_yr = kout_days_map[kout_dates_index_t] / N_DAYS_A_YEAR
+
+        pv = self.valuate(principle, coupon_rate, r, funding, kout_periods_yr, op_days, left_days)
+        return pv
