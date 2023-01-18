@@ -20,7 +20,7 @@ class SmallSnowBall:
         self.s_kout = s_kout  # 敲出价
         self.premium = premium  # 期权费，0.01表示名义本金的1%
 
-        self.q = 0.05227  # dividend
+        self.q = 0.0147  # dividend
 
     def gen_trends_mc(self, rand_fp, days, S0, r, q, v):
         """从指定的文件中读入并生成MC路径"""
