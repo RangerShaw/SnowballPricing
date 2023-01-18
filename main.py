@@ -6,6 +6,10 @@ import xlwings as xw
 import pandas as pd
 import numpy as np
 
+a = np.array([[1, 2], [3, 4]])
+b = np.array([2, 5])
+a > b
+
 trade_days = pd.read_csv('trade_days.csv', encoding='utf-8', parse_dates=['trading_days'])
 trade_days.head()
 trade_days.dtypes

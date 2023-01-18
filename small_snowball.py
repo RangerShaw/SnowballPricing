@@ -97,6 +97,7 @@ class SmallSnowBall:
 
 N_DAYS_A_YEAR = 365
 N_MC_PATHS = 100000
+FLUCTUATION_LIMIT = True
 
 
 class SmallsbM2M:
@@ -146,7 +147,7 @@ class SmallsbM2M:
         obs_dates = obs_dates[obs_dates > value_date]
 
         # no more observe day
-        if not obs_dates:
+        if len(obs_dates) == 0:
             return -funding * principle * np.exp(-r * left_days / N_DAYS_A_YEAR)
 
         value_date_t = self.date_map[value_date]
