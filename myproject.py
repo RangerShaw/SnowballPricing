@@ -15,7 +15,7 @@ class SmallsbM2M:
     def __init__(self, trading_days):
         self.trade_dates = np.array(trading_days)
         self.tdate_set = set(trading_days)
-        self.date_map = {v: index[0] for index, v in np.ndenumerate(self.trade_dates)}
+        self.tdate_map = {v: index for index, v in enumerate(trading_days)}
 
     def gen_trends_mc(self, days, S0, r, q, v):
         rand = np.random.randn(N_MC_PATHS, days)
@@ -54,19 +54,18 @@ class SmallsbM2M:
 
         if value_date in obs_dates and s1 >= s_kout:  # knock out immediately
             return (cp_rate - funding) * principal * op_days / N_DAYS_A_YEAR
-
-        obs_dates = obs_dates[obs_dates > value_date]
-        if len(obs_dates) == 0:  # no more observe day
+        if np.all(obs_dates < value_date):  # no more observe day
             return -funding * principal * np.exp(-r * left_days / N_DAYS_A_YEAR)
 
-        value_date_t = self.date_map[value_date]
-        e_date_t = self.date_map[e_date]
-        obs_dates_t = np.array([self.date_map[d] for d in obs_dates]) - value_date_t
-        kout_days_map = np.array([d.days for d in obs_dates - s_date])
+        obs_dates = obs_dates[obs_dates > value_date]
+        value_date_t = self.tdate_map[value_date]
+        e_date_t = self.tdate_map[e_date]
+        obs_dates_t = np.array([self.tdate_map[d] for d in obs_dates]) - value_date_t
+        kout_periods_map = np.array([d.days for d in obs_dates - s_date]) / N_DAYS_A_YEAR
 
         paths = self.gen_trends_mc(e_date_t - value_date_t, s1, r, q, v)
         kout_dates_index_t = self.classify_path(paths, obs_dates_t, s_kout)
-        kout_periods_yr = kout_days_map[kout_dates_index_t] / N_DAYS_A_YEAR
+        kout_periods_yr = kout_periods_map[kout_dates_index_t]
 
         pv = self.valuate(principal, cp_rate, r, funding, kout_periods_yr, op_days, left_days)
         return pv
@@ -90,8 +89,8 @@ def m2m(sheet_name):
     wb = xw.Book.caller()
     sheet = wb.sheets[sheet_name]
 
-    trading_days = wb.sheets['trading_days'].range('A1').options(transpose=True, expand='down').value
-    obs_dates = np.array(sheet.range('B12').options(transpose=True, expand='down').value)
+    trading_days = wb.sheets['trading_days'].range('A1').expand('down').value
+    obs_dates = np.array(sheet.range('B12').expand('down').value)
     [value_date, S0, v, r, q] = sheet['C3:C7'].value
     [s_date, e_date, funding, cp_rate, s_kout, principal] = sheet['F3:F8'].value
 
