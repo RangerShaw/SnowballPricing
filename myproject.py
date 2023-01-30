@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
+import datetime
+
 import xlwings as xw
 import numpy as np
 import datetime as dt
+from dateutil.relativedelta import relativedelta
 
 N_DAYS_A_YEAR = 365
 N_TRADE_DAYS_A_YEAR = 252  # delta t in MC path
@@ -84,6 +87,29 @@ class SmallsbM2M:
         pv = self._m2m_365(principal, s0, s_kout, funding, cp_rate, r, q, v, real_value_date, obs_dates, s_date, e_date)
         return pv * np.exp(r * (value_date - real_value_date).days / N_DAYS_A_YEAR)
 
+    def gen_obs_dates(self, s_date, e_date):
+        obs_dates = []
+
+        i = 1
+        obs_date = s_date + relativedelta(months=i)
+        while obs_date <= e_date:
+            while obs_date not in self.tdate_set:
+                obs_date += datetime.timedelta(days=1)
+            obs_dates.append(obs_date)
+            i += 1
+            obs_date = s_date + relativedelta(months=i)
+        return np.array(obs_dates)
+
+    def m2m_batch_365(self, s0, r, q, v, value_date, products_paras):
+        pvs = []
+        for product in products_paras:
+            [s_date, e_date, funding, cp_rate, s_kout, principal] = product
+            obs_dates = self.gen_obs_dates(s_date, e_date)
+            pv = self.m2m_365(principal, s0, s_kout, funding, cp_rate, r, q, v, value_date, obs_dates, s_date, e_date)
+            pvs.append(pv)
+            print(pv)
+        return pvs
+
 
 def m2m(sheet_name):
     wb = xw.Book.caller()
@@ -100,10 +126,22 @@ def m2m(sheet_name):
     sheet[RESULT_CELL].value = pv
 
 
-def m2m_batch():
+BATCH_RESULT_CELL = 'K16'
+
+
+def m2m_batch(sheet_name):
     wb = xw.Book.caller()
-    sheet = wb.sheets['Batch']
-    trading_days = wb.sheets['trading_days'].range('A1').options(transpose=True, expand='down').value
+    sheet = wb.sheets[sheet_name]
+
+    trading_days = wb.sheets['trading_days'].range('A1').expand('down').value
+    sb365 = SmallsbM2M(trading_days)
+
+    [value_date, S0, v, r, q] = sheet['C3:C7'].value
+    products_paras = sheet.range('C16').expand('table').value
+    products_paras = [p[:-1] for p in products_paras]
+
+    pvs = sb365.m2m_batch_365(S0, r, q, v, value_date, products_paras)
+    sheet[BATCH_RESULT_CELL].options(transpose=True).value = pvs
 
 
 if __name__ == "__main__":
