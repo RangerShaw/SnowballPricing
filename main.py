@@ -6,18 +6,17 @@ import xlwings as xw
 import pandas as pd
 import numpy as np
 from myproject import *
-from dateutil.relativedelta import relativedelta
 
 
 wb = xw.Book("myproject.xlsm")
 
-sheet = wb.sheets['batch']
+sheet = wb.sheets['中证500']
 
 trading_days = wb.sheets['trading_days'].range('A1').expand('down').value
 sb365 = SmallsbM2M(trading_days)
 
 [value_date, S0, v, r, q] = sheet['C3:C7'].value
-products_paras = sheet['C16:H16'].expand('down').value
+products_paras = sheet['C16:I16'].expand('down').value
 
 for product in products_paras:
     print(product)

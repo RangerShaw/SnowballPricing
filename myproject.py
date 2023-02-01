@@ -9,7 +9,7 @@ from dateutil.relativedelta import relativedelta
 N_DAYS_A_YEAR = 365
 N_TRADE_DAYS_A_YEAR = 252  # delta t in MC path
 N_MC_PATHS = 100000
-FLUCTUATION_LIMIT = 0  # 0: no limit
+FLUCTUATION_LIMIT = 0.1  # 0: no limit
 
 
 class SmallsbM2M:
@@ -63,8 +63,8 @@ class SmallsbM2M:
         obs_dates = obs_dates[obs_dates > value_date]
         value_date_t = self.tdate_map[value_date]
         e_date_t = self.tdate_map[e_date]
-        obs_dates_t = np.array([self.tdate_map[d] for d in obs_dates]) - value_date_t
-        kout_periods_map = np.array([d.days for d in obs_dates - s_date]) / N_DAYS_A_YEAR
+        obs_dates_t = [self.tdate_map[d] - value_date_t for d in obs_dates]
+        kout_periods_map = np.array([d.days / N_DAYS_A_YEAR for d in obs_dates - s_date])
 
         n_t_days = e_date_t - value_date_t
         paths = self.gen_paths_mc(n_t_days, s1, r, q, v) if self.paths is None else self.paths[:, :n_t_days + 1]
@@ -115,8 +115,10 @@ class SmallsbM2M:
 
         pvs = []
         for product in products_paras:
-            [s_date, e_date, funding, cp_rate, s_kout, prin] = product
-            if e_date not in self.tdate_set:
+            [s_date, e_date, funding, cp_rate, s_kout, prin, status] = product
+            if status == '否':
+                pvs.append(None)
+            elif e_date not in self.tdate_set:
                 pvs.append('有日期为非交易日')
             else:
                 obs_dates = self.gen_obs_dates(s_date, e_date)
@@ -150,7 +152,7 @@ def m2m_batch(sheet_name):
     sheet = wb.sheets[sheet_name]
 
     [value_date, S0, v, r, q] = sheet['C3:C7'].value
-    products_paras = sheet['C16:H16'].expand('down').value
+    products_paras = sheet['C16:I16'].expand('down').value
     trading_days = wb.sheets['trading_days'].range('A1').expand('down').value
 
     sb365 = SmallsbM2M(trading_days)
