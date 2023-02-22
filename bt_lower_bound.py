@@ -1,12 +1,6 @@
-from math import floor
-
 import pandas as pd
 import numpy as np
-
-# fp = 'G:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0215\\结构性产品同业发行结构汇总20230215.xlsx'
-# products = pd.read_excel(fp, sheet_name='历史发行结构汇总', usecols='H:M', skiprows=2)
-# closes_df = pd.read_excel(fp, sheet_name='历史走势')
-# today = closes_df['日期'].iloc[-1]
+import xlwings as xw
 
 interval_map = {}
 structs = {'两区间', '三区间', '鲨鱼鳍', '价差', '区间累计', '自动敲出'}
@@ -41,7 +35,7 @@ def gen_intervals(closes_df: pd.DataFrame):
 
 
 def backtest(closes_df, product):
-    period = floor(product['期限(月)'])
+    period = np.floor(product['期限(月)'])
     intervals = interval_map[period]
     prices0 = closes_df[product['标的']].values[intervals[0]]
     prices1 = closes_df[product['标的']].values[intervals[1]]
@@ -84,3 +78,4 @@ if __name__ == '__main__':
 
     results = products.apply(cal_lower_p, closes_df=closes_df, axis=1)
     print(results)
+    xw.Book(fp).sheets['历史发行结构汇总']['O4'].options(index=False, header=False).value = results
