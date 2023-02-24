@@ -16,28 +16,35 @@ def gen_intervals(closes_df: pd.DataFrame):
 
     for i, month in enumerate(period_months):
         intervals = [None, None]
-        sdate = pd.Timestamp(today - (pd.DateOffset(years=back_years[i]) if i != 0 else pd.DateOffset(months=6)))
-        i_sdate = (closes_df['日期'] >= sdate).argmax()
-        intervals[0] = np.arange(i_sdate, len(closes_df))
+        period = pd.DateOffset(months=month) if i != 0 else pd.DateOffset(days=14)
 
-        intervals[1] = intervals[0].copy()
-        for j in range(len(intervals[1])):
-            i_s = intervals[0][j]
-            edate = date_df.iloc[intervals[0][j]] + (pd.DateOffset(months=month) if i != 0 else pd.DateOffset(days=14))
-            bools = closes_df.loc[i_s:, '日期'] >= edate
-            if bools.any():
-                intervals[1][j] = bools.idxmax()
-            else:
-                intervals[0].resize(j, refcheck=False)
-                intervals[1].resize(j, refcheck=False)
-                break
+        fst_sdate = today - (pd.DateOffset(years=back_years[i]) if i != 0 else pd.DateOffset(months=6))
+        lst_sdate = today - period
+        i_fst_sdate = (closes_df['日期'] >= fst_sdate).argmax()
+        i_lst_sdate = (closes_df['日期'] <= lst_sdate).argmin()
+        intervals[0] = np.arange(i_fst_sdate, i_lst_sdate)
+
+        edates = date_df.iloc[intervals[0]] + period
+        edates = edates.values.reshape(len(edates), 1)
+        bools = date_df.values >= edates
+        intervals[1] = np.argmax(bools, axis=1)
+
         print(len(intervals[0]))
         interval_map[period_months[i]] = intervals
 
 
-def auto_call(closes_df, product):
+def auto_call(closes_df: pd.DataFrame, product, call: bool):
+    period = np.floor(product['期限(月)'])
+    intervals = interval_map[period]
+    prices = closes_df[product['标的']].values
 
-    pass
+    i_odates = np.linspace(intervals[0], intervals[1], 13, axis=1).round().astype(int)
+    paths = prices[i_odates[:, 1:]]
+    kout_prices = (prices[i_odates[:, 0]] * product['下端收益触达线']).reshape(paths.shape[0], 1)
+
+    nkout_bools = paths < kout_prices if call else paths > kout_prices
+    n_nkout = np.all(nkout_bools, axis=1).sum()
+    return n_nkout / len(intervals[0])
 
 
 def backtest(closes_df, product):
@@ -64,7 +71,7 @@ def backtest(closes_df, product):
         n_lower = np.sum((changes < lows[0]) | (changes > lows[1]))
         return n_lower / len(changes)
     elif struct == '自动敲出':
-        return None
+        return auto_call(closes_df, product, product['方向'] == '看涨')
     return None
 
 
@@ -88,8 +95,8 @@ if __name__ == '__main__':
     print(results)
 
     # xw.Book(fp).sheets['历史发行结构汇总']['O4'].options(index=False, header=False).value = results
-    wb = op.load_workbook(fp)
-    ws = wb['历史发行结构汇总']
-    for r_idx, res in enumerate(results.tolist(), 4):
-        ws.cell(row=r_idx, column=15, value=res)
-    wb.save(fp)
+    # wb = op.load_workbook(fp)
+    # ws = wb['历史发行结构汇总']
+    # for r_idx, res in enumerate(results.tolist(), 4):
+    #     ws.cell(row=r_idx, column=15, value=res)
+    # wb.save(fp)
