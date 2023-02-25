@@ -6,7 +6,6 @@ import openpyxl as op
 class LowerBoundTester:
 
     def __init__(self, fp):
-        self.structs = {'两区间', '三区间', '鲨鱼鳍', '价差', '触碰式', '区间累计', '自动敲出'}
         self.bt_map = {
             '两区间': self.bt_plain,
             '三区间': self.bt_plain,
@@ -31,22 +30,22 @@ class LowerBoundTester:
         print(f'today: {today}')
 
         for i, month in enumerate(period_months):
-            intervals = [None, None]
             period = pd.DateOffset(months=month) if i != 0 else pd.DateOffset(days=14)
 
             fst_sdate = today - (pd.DateOffset(years=back_years[i]) if i != 0 else pd.DateOffset(months=6))
             lst_sdate = today - period
             i_fst_sdate = (date_sr >= fst_sdate).argmax()
             i_lst_sdate = (date_sr <= lst_sdate).argmin()
-            intervals[0] = np.arange(i_fst_sdate, i_lst_sdate)
+            intervals = np.arange(i_fst_sdate, i_lst_sdate)
+            intervals.resize((2, len(intervals)), refcheck=False)
 
             edates = date_sr.iloc[intervals[0]] + period
             edates = edates.values.reshape(len(edates), 1)
             bools = date_sr.values >= edates
             intervals[1] = np.argmax(bools, axis=1)
-
             print(len(intervals[0]))
             interval_map[period_months[i]] = intervals
+
         return interval_map
 
     def bt_auto_call(self, product):
@@ -96,8 +95,8 @@ class LowerBoundTester:
         return self.bt_map[struct](product) if struct in self.bt_map else None
 
     def cal_lower_p(self, product):
-        if product['结构'] not in self.structs or product['标的'] not in self.underlyings or product[
-            '期限(月)'] not in self.interval_map:
+        if not (product['结构'] in self.bt_map and product['标的'] in self.underlyings
+                and product['期限(月)'] in self.interval_map):
             return None
         else:
             return self.backtest(product)
@@ -107,7 +106,7 @@ class LowerBoundTester:
 
 
 if __name__ == '__main__':
-    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0224\\结构性产品同业发行结构汇总20230222.xlsx'
+    fp = 'G:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0224\\结构性产品同业发行结构汇总20230222.xlsx'
     tester = LowerBoundTester(fp)
     results = tester.run()
     print(results)
