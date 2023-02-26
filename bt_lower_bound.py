@@ -18,7 +18,6 @@ class LowerBoundTester:
         self.products = pd.read_excel(fp, sheet_name='历史发行结构汇总', usecols='H:M', skiprows=2)
         self.closes_df = pd.read_excel(fp, sheet_name='历史走势')
         self.products['期限(月)'] = np.floor(self.products['期限(月)'])
-        self.underlyings = set(self.closes_df.columns)
         self.interval_map = self.gen_intervals()
 
     def gen_intervals(self):
@@ -48,6 +47,13 @@ class LowerBoundTester:
 
         return interval_map
 
+    def get_ratios(self, product: pd.Series):
+        intervals = self.interval_map[np.floor(product['期限(月)'])]
+        prices = self.closes_df[product['标的']].values
+        prices0 = prices[intervals[0]]
+        ratios = prices[intervals[1]] / prices0
+        return ratios, prices0
+
     def bt_auto_call(self, product):
         period = np.floor(product['期限(月)'])
         intervals = self.interval_map[period]
@@ -62,47 +68,34 @@ class LowerBoundTester:
         return n_nkout / len(intervals[0])
 
     def bt_plain(self, product):
+        ratios, prices0 = self.get_ratios(product)
         low_bound = product['下端收益触达线']
-        intervals = self.interval_map[np.floor(product['期限(月)'])]
-        prices = self.closes_df[product['标的']].values
-        prices0 = prices[intervals[0]]
-        ratios = prices[intervals[1]] / prices0
         n_lower = np.sum(ratios < low_bound if product['方向'] == '看涨' else ratios > low_bound)
         return n_lower / (len(ratios) - np.isnan(prices0).sum())  # 民生全球
 
     def bt_shark_fin(self, product):
         if product['方向'] == '两边':
             return None
-        else:
-            low_bound = product['下端收益触达线']
-            intervals = self.interval_map[np.floor(product['期限(月)'])]
-            prices = self.closes_df[product['标的']].values
-            ratios = prices[intervals[1]] / prices[intervals[0]]
-            n_lower = np.sum(ratios < low_bound if product['方向'] == '看涨' else ratios > low_bound)
-            return n_lower / len(ratios)
+        ratios, _ = self.get_ratios(product)
+        low_bound = product['下端收益触达线']
+        n_lower = np.sum(ratios < low_bound if product['方向'] == '看涨' else ratios > low_bound)
+        return n_lower / len(ratios)
 
     def bt_range_accrual(self, product):
-        intervals = self.interval_map[np.floor(product['期限(月)'])]
-        prices = self.closes_df[product['标的']].values
-        ratios = prices[intervals[1]] / prices[intervals[0]]
-
+        ratios, _ = self.get_ratios(product)
         price_range = [float(x.replace('%', 'e-2')) for x in str(product['下端收益触达线']).split('；')]
         n_lower = np.sum((ratios < price_range[0]) | (ratios > price_range[1]))
         return n_lower / len(ratios)
 
     def backtest(self, product):
-        struct = product['结构']
-        return self.bt_map[struct](product) if struct in self.bt_map else None
-
-    def cal_lower_p(self, product):
-        if not (product['结构'] in self.bt_map and product['标的'] in self.underlyings
+        if not (product['结构'] in self.bt_map and product['标的'] in self.closes_df.columns
                 and product['期限(月)'] in self.interval_map):
             return None
         else:
-            return self.backtest(product)
+            return self.bt_map[product['结构']](product)
 
     def run(self):
-        return self.products.apply(self.cal_lower_p, axis=1)
+        return self.products.apply(self.backtest, axis=1)
 
 
 if __name__ == '__main__':
