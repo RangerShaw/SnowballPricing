@@ -10,7 +10,7 @@ class LowerBoundTester:
             '两区间': self.bt_plain,
             '三区间': self.bt_plain,
             '价差': self.bt_plain,
-            '触碰式': self.bt_plain,
+            '触碰式': self.bt_touch,
             '鲨鱼鳍': self.bt_shark_fin,
             '区间累计': self.bt_range_accrual,
             '自动敲出': self.bt_auto_call,
@@ -67,6 +67,20 @@ class LowerBoundTester:
         n_nkout = np.all(nkout_bools, axis=1).sum()
         return n_nkout / len(intervals[0])
 
+    def bt_touch(self, product):
+        period = np.floor(product['期限(月)'])
+        is_call = product['方向'] == '看涨' or product['方向'] == '触入看涨'
+        intervals = self.interval_map[period]
+        prices = self.closes_df[product['标的']].values
+        low_prices = product['下端收益触达线'] * prices[intervals[0]]
+
+        n_low = 0
+        for i, interval in enumerate(intervals.T):
+            i_prices = prices[interval[0]:interval[1]]
+            if np.all(i_prices < low_prices[i] if is_call else i_prices > low_prices[i]):
+                n_low += 1
+        return n_low / len(intervals[0])
+
     def bt_plain(self, product):
         ratios, prices0 = self.get_ratios(product)
         low_bound = product['下端收益触达线']
@@ -99,7 +113,7 @@ class LowerBoundTester:
 
 
 if __name__ == '__main__':
-    fp = 'G:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0224\\结构性产品同业发行结构汇总20230222.xlsx'
+    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0224\\结构性产品同业发行结构汇总20230222.xlsx'
     tester = LowerBoundTester(fp)
     results = tester.run()
     print(results)
