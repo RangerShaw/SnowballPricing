@@ -5,7 +5,7 @@ import openpyxl as op
 
 class LowerBoundTester:
 
-    def __init__(self, fp):
+    def __init__(self, fp: str):
         self.bt_map = {
             '价差': self.bt_plain,
             '两区间': self.bt_plain,
@@ -47,11 +47,10 @@ class LowerBoundTester:
         return interval_map
 
     def get_intervals(self, period, prices: np.ndarray):
-        if period not in self.period_months:
-            idx = (np.abs(self.period_months - period)).argmin()
-            period = self.period_months[idx]  # nearest period
+        idx = np.abs(self.period_months - period).argmin()
+        period = self.period_months[idx]  # nearest period
         intervals = self.interval_map[period]
-        n_nan = np.isnan(prices[intervals[0]]).sum()
+        n_nan = np.isnan(prices[intervals[0]]).argmin()
         return intervals[:, n_nan:]
 
     def get_ratios(self, product: pd.Series):
@@ -104,7 +103,7 @@ class LowerBoundTester:
                 n_low += 1
         return n_low / len(intervals[0])
 
-    def backtest(self, product):
+    def _backtest(self, product):
         if product['结构'] not in self.bt_map or product['标的'] not in self.closes_df.columns:
             return None
         try:
@@ -113,11 +112,11 @@ class LowerBoundTester:
             return None
 
     def run(self):
-        return self.products.apply(self.backtest, axis=1)
+        return self.products.apply(self._backtest, axis=1)
 
 
 if __name__ == '__main__':
-    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0224\\结构性产品同业发行结构汇总20230223.xlsx'
+    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0224\\结构性产品同业发行结构汇总20230222.xlsx'
     tester = LowerBoundTester(fp)
     results = tester.run()
     print(results)
