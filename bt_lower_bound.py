@@ -39,8 +39,7 @@ class LowerBoundTester:
             intervals.resize((2, len(intervals)), refcheck=False)
 
             edates = date_sr.iloc[intervals[0]] + period
-            edates = edates.values.reshape(len(edates), 1)
-            bools = date_sr.values >= edates
+            bools = date_sr.values >= edates.values[:, None]
             intervals[1] = np.argmax(bools, axis=1)
             print(len(intervals[0]))
             interval_map[month] = intervals
@@ -108,21 +107,25 @@ class LowerBoundTester:
     def backtest(self, product):
         if product['结构'] not in self.bt_map or product['标的'] not in self.closes_df.columns:
             return None
-        return self.bt_map[product['结构']](product)
+        try:
+            return self.bt_map[product['结构']](product)
+        except:
+            return None
 
     def run(self):
         return self.products.apply(self.backtest, axis=1)
 
 
 if __name__ == '__main__':
-    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0224\\结构性产品同业发行结构汇总20230222.xlsx'
+    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0224\\结构性产品同业发行结构汇总20230223.xlsx'
     tester = LowerBoundTester(fp)
     results = tester.run()
     print(results)
 
-    # xw.Book(fp).sheets['历史发行结构汇总']['O4'].options(index=False, header=False).value = results
     # wb = op.load_workbook(fp)
     # ws = wb['历史发行结构汇总']
     # for r_idx, res in enumerate(results.tolist(), 4):
     #     ws.cell(row=r_idx, column=15, value=res)
     # wb.save(fp)
+
+    # xw.Book(fp).sheets['历史发行结构汇总']['O4'].options(index=False, header=False).value = results
