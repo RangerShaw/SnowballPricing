@@ -14,6 +14,7 @@ class LowerBoundTester:
             '触碰式': self.bt_touch,
             '区间累计': self.bt_range_accrual,
             '自动敲出': self.bt_auto_call,
+            '自动敲入敲出': self.bt_snowball,
         }
         self.products = pd.read_excel(fp, sheet_name='历史发行结构汇总', usecols='H:M', skiprows=2)
         self.closes_df = pd.read_excel(fp, sheet_name='历史走势')
@@ -22,8 +23,8 @@ class LowerBoundTester:
 
     def build_intervals(self):
         interval_map = {}
-        period_months = [0.25, 0.5, 1, 2, 3, 6, 9, 12, 36]
-        back_years = [0.25, 0.5, 1, 2, 3, 5, 9, 10, 13]
+        period_months = [0.25, 0.5, 1, 2, 3, 6, 9, 12, 24, 36]
+        back_years = [0.25, 0.5, 1, 2, 3, 5, 9, 10, 12, 13]
         date_sr = self.closes_df['日期']
         today = date_sr.iloc[-1]
         print(f'today: {today}')
@@ -90,6 +91,25 @@ class LowerBoundTester:
         n_nkout = np.all(nkout_bools, axis=1).sum()
         return n_nkout / len(intervals[0])
 
+    def bt_snowball(self, product):
+        is_call = product['方向'] == '看涨'
+        prices = self.closes_df[product['标的']].values
+        intervals = self.get_intervals(product['期限(月)'], prices)
+
+        i_odates = np.linspace(intervals[0], intervals[1], 13, axis=1).round().astype(int)
+        paths = prices[i_odates[:, 1:]]
+        kout_prices = prices[i_odates[:, 0], None] * 1.0
+        nkout_bool_matrix = paths < kout_prices if is_call else paths > kout_prices
+        idx_nkout = np.all(nkout_bool_matrix, axis=1).nonzero()[0]
+
+        kin_prices = prices[i_odates[:, 0], None] * product['下端收益触达线']
+        n_kin_nkout = 0
+        for i in idx_nkout:
+            i_prices = prices[intervals[0][i]:intervals[1][i]]
+            if np.any(i_prices < kin_prices[i] if is_call else i_prices > kin_prices[i]):
+                n_kin_nkout += 1
+        return n_kin_nkout / len(intervals[0])
+
     def bt_touch(self, product):
         prices = self.closes_df[product['标的']].values
         intervals = self.get_intervals(product['期限(月)'], prices)
@@ -106,6 +126,7 @@ class LowerBoundTester:
     def _backtest(self, product):
         if product['结构'] not in self.bt_map or product['标的'] not in self.closes_df.columns:
             return None
+        # return self.bt_map[product['结构']](product)
         try:
             return self.bt_map[product['结构']](product)
         except:
@@ -116,7 +137,7 @@ class LowerBoundTester:
 
 
 if __name__ == '__main__':
-    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0224\\结构性产品同业发行结构汇总20230222.xlsx'
+    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0303\\结构性产品同业发行结构汇总20230301.xlsx'
     tester = LowerBoundTester(fp)
     results = tester.run()
     print(results)
