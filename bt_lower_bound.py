@@ -16,6 +16,7 @@ class LowerBoundTester:
             '自动敲出': self.bt_auto_call,
             '自动敲入敲出': self.bt_snowball,
         }
+        self.periods = [(0.25, 0.25), (0.5, 0.5), (1, 1), (2, 2), (3, 3), (6, 5), (9, 9), (12, 10), (24, 12), (36, 13)]
         self.products = pd.read_excel(fp, sheet_name='历史发行结构汇总', usecols='H:M', skiprows=2)
         self.closes_df = pd.read_excel(fp, sheet_name='历史走势')
         self.interval_map = self.build_intervals()
@@ -23,15 +24,12 @@ class LowerBoundTester:
 
     def build_intervals(self):
         interval_map = {}
-        period_months = [0.25, 0.5, 1, 2, 3, 6, 9, 12, 24, 36]
-        back_years = [0.25, 0.5, 1, 2, 3, 5, 9, 10, 12, 13]
         date_sr = self.closes_df['日期']
         today = date_sr.iloc[-1]
         print(f'today: {today}')
 
-        for i, month in enumerate(period_months):
+        for i, (month, year) in enumerate(self.periods):
             period = pd.DateOffset(months=month) if month >= 1 else pd.DateOffset(days=round(28 * month))
-            year = back_years[i]
             fst_sdate = today - (pd.DateOffset(years=year) if year >= 1 else pd.DateOffset(months=round(year * 12)))
             lst_sdate = today - period
             i_fst_sdate = (date_sr >= fst_sdate).argmax()
@@ -42,14 +40,14 @@ class LowerBoundTester:
             edates = date_sr.iloc[intervals[0]] + period
             bools = date_sr.values >= edates.values[:, None]
             intervals[1] = np.argmax(bools, axis=1)
-            print(len(intervals[0]))
             interval_map[month] = intervals
+            print(len(intervals[0]))
 
         return interval_map
 
     def get_intervals(self, period, prices: np.ndarray):
-        idx = np.abs(self.period_months - period).argmin()
-        period = self.period_months[idx]  # nearest period
+        if period not in self.interval_map:
+            period = self.period_months[np.abs(self.period_months - period).argmin()]  # nearest period
         intervals = self.interval_map[period]
         n_nan = np.isnan(prices[intervals[0]]).argmin()
         return intervals[:, n_nan:]
