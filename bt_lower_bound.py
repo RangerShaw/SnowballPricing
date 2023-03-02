@@ -45,16 +45,16 @@ class LowerBoundTester:
 
         return interval_map
 
-    def get_intervals(self, period, prices: np.ndarray):
+    def get_prices_intervals(self, underlying, period):
+        prices = self.closes_df[underlying].values
         if period not in self.interval_map:
             period = self.period_months[np.abs(self.period_months - period).argmin()]  # nearest period
         intervals = self.interval_map[period]
         n_nan = np.isnan(prices[intervals[0]]).argmin()
-        return intervals[:, n_nan:]
+        return prices, intervals[:, n_nan:]
 
     def get_ratios(self, product: pd.Series):
-        prices = self.closes_df[product['标的']].values
-        intervals = self.get_intervals(product['期限(月)'], prices)
+        prices, intervals = self.get_prices_intervals(product['标的'], product['期限(月)'])
         ratios = prices[intervals[1]] / prices[intervals[0]]
         return ratios
 
@@ -78,48 +78,41 @@ class LowerBoundTester:
         n_lower = np.sum((ratios < price_range[0]) | (ratios > price_range[1]))
         return n_lower / len(ratios)
 
-    def bt_auto_call(self, product):
-        prices = self.closes_df[product['标的']].values
-        intervals = self.get_intervals(product['期限(月)'], prices)
-
+    def not_kout(self, prices, intervals, is_call, kout_p_ratio=1.0):
         i_odates = np.linspace(intervals[0], intervals[1], 13, axis=1).round().astype(int)
         paths = prices[i_odates[:, 1:]]
-        kout_prices = prices[i_odates[:, 0], None] * product['下端收益触达线']
-        nkout_bools = paths < kout_prices if product['方向'] == '看涨' else paths > kout_prices
-        n_nkout = np.all(nkout_bools, axis=1).sum()
+        kout_prices = prices[i_odates[:, 0], None] * kout_p_ratio
+        nkout_bool_matrix = paths < kout_prices if is_call else paths > kout_prices
+        return np.all(nkout_bool_matrix, axis=1)
+
+    def count_touch(self, prices, intervals, is_call, strike_p_ratio):
+        strike_prices = prices[intervals[0]] * strike_p_ratio
+        n_touch = 0
+        for i, interval in enumerate(intervals.T):
+            i_prices = prices[interval[0] + 1:interval[1]]
+            if np.any(i_prices >= strike_prices[i] if is_call else i_prices <= strike_prices[i]):
+                n_touch += 1
+        return n_touch
+
+    def bt_auto_call(self, product):
+        prices, intervals = self.get_prices_intervals(product['标的'], product['期限(月)'])
+        nkout_bool_array = self.not_kout(prices, intervals, product['方向'] == '看涨', product['下端收益触达线'])
+        n_nkout = nkout_bool_array.sum()
         return n_nkout / len(intervals[0])
 
     def bt_snowball(self, product):
         is_call = product['方向'] == '看涨'
-        prices = self.closes_df[product['标的']].values
-        intervals = self.get_intervals(product['期限(月)'], prices)
+        prices, intervals = self.get_prices_intervals(product['标的'], product['期限(月)'])
 
-        i_odates = np.linspace(intervals[0], intervals[1], 13, axis=1).round().astype(int)
-        paths = prices[i_odates[:, 1:]]
-        kout_prices = prices[i_odates[:, 0], None] * 1.0
-        nkout_bool_matrix = paths < kout_prices if is_call else paths > kout_prices
-        idx_nkout = np.all(nkout_bool_matrix, axis=1).nonzero()[0]
-
-        kin_prices = prices[i_odates[:, 0], None] * product['下端收益触达线']
-        n_kin_nkout = 0
-        for i in idx_nkout:
-            i_prices = prices[intervals[0][i]:intervals[1][i]]
-            if np.any(i_prices < kin_prices[i] if is_call else i_prices > kin_prices[i]):
-                n_kin_nkout += 1
+        nkout_bool_array = self.not_kout(prices, intervals, is_call)
+        idx_nkout = nkout_bool_array.nonzero()[0]
+        n_kin_nkout = self.count_touch(prices, intervals[:, idx_nkout], not is_call, product['下端收益触达线'])
         return n_kin_nkout / len(intervals[0])
 
     def bt_touch(self, product):
-        prices = self.closes_df[product['标的']].values
-        intervals = self.get_intervals(product['期限(月)'], prices)
-        is_call = product['方向'] == '看涨' or product['方向'] == '触入看涨'
-        low_prices = product['下端收益触达线'] * prices[intervals[0]]
-
-        n_low = 0
-        for i, interval in enumerate(intervals.T):
-            i_prices = prices[interval[0]:interval[1]]
-            if np.all(i_prices < low_prices[i] if is_call else i_prices > low_prices[i]):
-                n_low += 1
-        return n_low / len(intervals[0])
+        prices, intervals = self.get_prices_intervals(product['标的'], product['期限(月)'])
+        n_touch = self.count_touch(prices, intervals, product['方向'] == '看涨', product['下端收益触达线'])
+        return (len(intervals[0]) - n_touch) / len(intervals[0])
 
     def _backtest(self, product):
         if product['结构'] not in self.bt_map or product['标的'] not in self.closes_df.columns:
