@@ -61,38 +61,24 @@ class LowerBoundTester:
     def bt_plain(self, product):
         ratios = self.get_ratios(product)
         low_bound = product['下端收益触达线']
-        n_lower = np.sum(ratios < low_bound if product['方向'] == '看涨' else ratios > low_bound)
-        return n_lower / (len(ratios))
+        n_low = np.sum(ratios < low_bound if product['方向'] == '看涨' else ratios > low_bound)
+        return n_low / (len(ratios))
 
     def bt_shark_fin(self, product):
-        if product['方向'] == '两边':
-            return None
-        ratios = self.get_ratios(product)
-        low_bound = product['下端收益触达线']
-        n_lower = np.sum(ratios < low_bound if product['方向'] == '看涨' else ratios > low_bound)
-        return n_lower / len(ratios)
+        return None if product['方向'] == '两边' else self.bt_plain(product)
 
     def bt_range_accrual(self, product):
         ratios = self.get_ratios(product)
         price_range = [float(x.replace('%', 'e-2')) for x in str(product['下端收益触达线']).split('；')]
-        n_lower = np.sum((ratios < price_range[0]) | (ratios > price_range[1]))
-        return n_lower / len(ratios)
+        n_low = np.sum((ratios < price_range[0]) | (ratios > price_range[1]))
+        return n_low / len(ratios)
 
-    def not_kout(self, prices, intervals, is_call, kout_p_ratio=1.0):
+    def not_kout(self, prices, intervals, is_upside: bool, kout_p_ratio=1.0):
         i_odates = np.linspace(intervals[0], intervals[1], 13, axis=1).round().astype(int)
         paths = prices[i_odates[:, 1:]]
         kout_prices = prices[i_odates[:, 0], None] * kout_p_ratio
-        nkout_bool_matrix = paths < kout_prices if is_call else paths > kout_prices
+        nkout_bool_matrix = paths < kout_prices if is_upside else paths > kout_prices
         return np.all(nkout_bool_matrix, axis=1)
-
-    def count_touch(self, prices, intervals, is_call, strike_p_ratio):
-        strike_prices = prices[intervals[0]] * strike_p_ratio
-        n_touch = 0
-        for i, interval in enumerate(intervals.T):
-            i_prices = prices[interval[0] + 1:interval[1]]
-            if np.any(i_prices >= strike_prices[i] if is_call else i_prices <= strike_prices[i]):
-                n_touch += 1
-        return n_touch
 
     def bt_auto_call(self, product):
         prices, intervals = self.get_prices_intervals(product['标的'], product['期限(月)'])
@@ -100,19 +86,29 @@ class LowerBoundTester:
         n_nkout = nkout_bool_array.sum()
         return n_nkout / len(intervals[0])
 
-    def bt_snowball(self, product):
-        is_call = product['方向'] == '看涨'
-        prices, intervals = self.get_prices_intervals(product['标的'], product['期限(月)'])
-
-        nkout_bool_array = self.not_kout(prices, intervals, is_call)
-        idx_nkout = nkout_bool_array.nonzero()[0]
-        n_kin_nkout = self.count_touch(prices, intervals[:, idx_nkout], not is_call, product['下端收益触达线'])
-        return n_kin_nkout / len(intervals[0])
+    def count_touch(self, prices, intervals, is_upside: bool, strike_p_ratio):
+        strike_prices = prices[intervals[0]] * strike_p_ratio
+        n_touch = 0
+        for i, interval in enumerate(intervals.T):
+            prices_i = prices[interval[0] + 1:interval[1]]
+            if np.any(prices_i >= strike_prices[i] if is_upside else prices_i <= strike_prices[i]):
+                n_touch += 1
+        return n_touch
 
     def bt_touch(self, product):
+        is_upside = product['方向'] == '看涨' or product['方向'] == '触入看涨'
         prices, intervals = self.get_prices_intervals(product['标的'], product['期限(月)'])
-        n_touch = self.count_touch(prices, intervals, product['方向'] == '看涨', product['下端收益触达线'])
+        n_touch = self.count_touch(prices, intervals, is_upside, product['下端收益触达线'])
         return (len(intervals[0]) - n_touch) / len(intervals[0])
+
+    def bt_snowball(self, product):
+        is_upside = product['方向'] == '看涨'
+        prices, intervals = self.get_prices_intervals(product['标的'], product['期限(月)'])
+
+        nkout_bool_array = self.not_kout(prices, intervals, is_upside)
+        idx_nkout = nkout_bool_array.nonzero()[0]
+        n_kin_nkout = self.count_touch(prices, intervals[:, idx_nkout], not is_upside, product['下端收益触达线'])
+        return n_kin_nkout / len(intervals[0])
 
     def _backtest(self, product):
         if product['结构'] not in self.bt_map or product['标的'] not in self.closes_df.columns:
@@ -128,7 +124,7 @@ class LowerBoundTester:
 
 
 if __name__ == '__main__':
-    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0303\\结构性产品同业发行结构汇总20230301.xlsx'
+    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0224\\结构性产品同业发行结构汇总20230222.xlsx'
     tester = LowerBoundTester(fp)
     results = tester.run()
     print(results)
