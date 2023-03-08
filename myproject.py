@@ -42,13 +42,13 @@ class SmallsbM2M:
 
     def valuate(self, principal, coupon_rate, r, funding, kout_periods_yr, op_days, left_days):
         # knock out
-        kout_disc_periods_yr = kout_periods_yr - (op_days / N_DAYS_A_YEAR)
-        kout_profits = principal * (coupon_rate - funding) * kout_periods_yr * np.exp(-r * kout_disc_periods_yr)
+        kout_discount_periods_yr = kout_periods_yr - (op_days / N_DAYS_A_YEAR)
+        kout_profits = principal * (coupon_rate - funding) * kout_periods_yr * np.exp(-r * kout_discount_periods_yr)
         pv_kout = np.sum(kout_profits)
 
         # not knock out
-        kin_disc_period_yr = left_days / N_DAYS_A_YEAR
-        nkout_losses = (N_MC_PATHS - len(kout_periods_yr)) * principal * funding * np.exp(-r * kin_disc_period_yr)
+        kin_discount_period_yr = left_days / N_DAYS_A_YEAR
+        nkout_losses = (N_MC_PATHS - len(kout_periods_yr)) * principal * funding * np.exp(-r * kin_discount_period_yr)
         return (pv_kout - nkout_losses) / N_MC_PATHS
 
     def m2m_365(self, principal, s1, s_kout, funding, cp_rate, r, q, v, value_date, obs_dates, s_date, e_date):
@@ -57,7 +57,7 @@ class SmallsbM2M:
 
         if value_date in obs_dates and s1 >= s_kout:  # knock out immediately
             return (cp_rate - funding) * principal * op_days / N_DAYS_A_YEAR
-        if np.all(obs_dates < value_date):  # no more observe day
+        if np.all(obs_dates <= value_date):  # no more observe day
             return -funding * principal * np.exp(-r * left_days / N_DAYS_A_YEAR)
 
         obs_dates = obs_dates[obs_dates > value_date]
@@ -66,7 +66,7 @@ class SmallsbM2M:
         obs_dates_t = [self.tdate_map[d] - value_date_t for d in obs_dates]
         kout_periods_map = np.array([d.days / N_DAYS_A_YEAR for d in obs_dates - s_date])
 
-        n_t_days = e_date_t - value_date_t
+        n_t_days = e_date_t - value_date_t  # N of trading days left
         paths = self.gen_paths_mc(n_t_days, s1, r, q, v) if self.paths is None else self.paths[:, :n_t_days + 1]
         kout_dates_index_t = self.classify_path(paths, obs_dates_t, s_kout)
         kout_periods_yr = kout_periods_map[kout_dates_index_t]
@@ -74,24 +74,22 @@ class SmallsbM2M:
         pv = self.valuate(principal, cp_rate, r, funding, kout_periods_yr, op_days, left_days)
         return pv
 
-    def check_paras(self, e_date, obs_dates):
-        return e_date in self.tdate_set and all(d in self.tdate_set for d in obs_dates)
-
-    def m2m_single_365(self, principal, s0, s_kout, funding, cp_rate, r, q, v, value_date, obs_dates, s_date, e_date):
-        if not self.check_paras(e_date, obs_dates):
+    def m2m_single_365(self, principal, s0, s_kout, funding, cp_rate, r, q, v, value_date, s_date, e_date, cool_months):
+        if s_date not in self.tdate_set or e_date not in self.tdate_set:
             return '有日期为非交易日'
 
         real_value_date = value_date
         while real_value_date not in self.tdate_set:
             real_value_date -= datetime.timedelta(days=1)
 
+        obs_dates = self.gen_obs_dates(s_date, e_date, cool_months)
         pv = self.m2m_365(principal, s0, s_kout, funding, cp_rate, r, q, v, real_value_date, obs_dates, s_date, e_date)
         return pv * np.exp(r * (value_date - real_value_date).days / N_DAYS_A_YEAR)
 
-    def gen_obs_dates(self, s_date, e_date):
+    def gen_obs_dates(self, s_date, e_date, cool_months=0):
         obs_dates = []
 
-        i = 1
+        i = 1 + cool_months
         obs_date = s_date + relativedelta(months=i)
         while obs_date <= e_date:
             while obs_date not in self.tdate_set:
@@ -137,12 +135,11 @@ def m2m(sheet_name):
     sheet = wb.sheets[sheet_name]
 
     trading_days = wb.sheets['trading_days'].range('A1').expand('down').value
-    obs_dates = np.array(sheet.range('B12').expand('down').value)
     [value_date, S0, v, r, q] = sheet['C3:C7'].value
-    [s_date, e_date, funding, cp_rate, s_kout, principal] = sheet['F3:F8'].value
+    [s_date, e_date, funding, cp_rate, s_kout, principal, cool_months] = sheet['F3:F9'].value
 
     sb365 = SmallsbM2M(trading_days)
-    pv = sb365.m2m_single_365(principal, S0, s_kout, funding, cp_rate, r, q, v, value_date, obs_dates, s_date, e_date)
+    pv = sb365.m2m_single_365(principal, S0, s_kout, funding, cp_rate, r, q, v, value_date, s_date, e_date, cool_months)
     print(pv)
     sheet[RESULT_CELL].value = pv
 

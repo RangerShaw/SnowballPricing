@@ -10,30 +10,25 @@ from myproject import *
 
 wb = xw.Book("myproject.xlsm")
 
-sheet = wb.sheets['中证500']
-
-trading_days = wb.sheets['trading_days'].range('A1').expand('down').value
-sb365 = SmallsbM2M(trading_days)
-
-[value_date, S0, v, r, q] = sheet['C3:C7'].value
-products_paras = sheet['C16:I16'].expand('down').value
-
-for product in products_paras:
-    print(product)
-
-pvs = sb365.m2m_batch_365(S0, r, q, v, value_date, products_paras)
-sheet.range(BATCH_RESULT_CELL).options(transpose=True).value = pvs
-
-# sheet = xw.Book("myproject.xlsm").sheets[0]
-# obs_dates = np.array(sheet.range('B12').expand('down').value)
+# sheet = wb.sheets['中证500']
 # trading_days = wb.sheets['trading_days'].range('A1').expand('down').value
-#
-# [today, S0, v, r, q] = sheet['C3:C7'].value
-# [s_date, e_date, funding, coupon_rate, s_kout, principle] = sheet['F3:F8'].value
-#
 # sb365 = SmallsbM2M(trading_days)
-# pv1 = sb365.m2m_365(principle, S0, s_kout, funding, coupon_rate, r, q, v, today, np.array(obs_dates), s_date, e_date)
-# print(pv1)
+# [value_date, S0, v, r, q] = sheet['C3:C7'].value
+# products_paras = sheet['C16:I16'].expand('down').value
+# for product in products_paras:
+#     print(product)
+# pvs = sb365.m2m_batch_365(S0, r, q, v, value_date, products_paras)
+# sheet.range(BATCH_RESULT_CELL).options(transpose=True).value = pvs
+
+sheet = wb.sheets['single']
+trading_days = wb.sheets['trading_days'].range('A1').expand('down').value
+[value_date, S0, v, r, q] = sheet['C3:C7'].value
+[s_date, e_date, funding, cp_rate, s_kout, principal, cool_months] = sheet['F3:F9'].value
+sb365 = SmallsbM2M(trading_days)
+pv = sb365.m2m_single_365(principal, S0, s_kout, funding, cp_rate, r, q, v, value_date, s_date, e_date, cool_months)
+print(pv)
+sheet[RESULT_CELL].value = pv
+
 
 fp = 'data/QuasiRand.pickle'
 
