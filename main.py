@@ -18,7 +18,8 @@ wb = xw.Book("myproject.xlsm")
 # for product in products_paras:
 #     print(product)
 # pvs = sb365.m2m_batch_365(S0, r, q, v, value_date, products_paras)
-# sheet.range(BATCH_RESULT_CELL).options(transpose=True).value = pvs
+# sheet.range('K16').options(transpose=True).value = pvs
+
 
 sheet = wb.sheets['single']
 trading_days = wb.sheets['trading_days'].range('A1').expand('down').value
@@ -26,8 +27,7 @@ trading_days = wb.sheets['trading_days'].range('A1').expand('down').value
 [s_date, e_date, funding, cp_rate, s_kout, principal, cool_months] = sheet['F3:F9'].value
 sb365 = SmallsbM2M(trading_days)
 pv = sb365.m2m_single_365(principal, S0, s_kout, funding, cp_rate, r, q, v, value_date, s_date, e_date, cool_months)
-print(pv)
-sheet[RESULT_CELL].value = pv
+print(f'M2M: {pv}')
 
 
 fp = 'data/QuasiRand.pickle'

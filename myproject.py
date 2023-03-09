@@ -52,7 +52,7 @@ class SmallsbM2M:
         return (pv_kout - nkout_losses) / N_MC_PATHS
 
     def m2m_365(self, principal, s1, s_kout, funding, cp_rate, r, q, v, value_date, obs_dates, s_date, e_date):
-        op_days = (value_date - s_date).days
+        op_days = (value_date - s_date).days  # 合约已运行天数
         left_days = (e_date - value_date).days
 
         if value_date in obs_dates and s1 >= s_kout:  # knock out immediately
@@ -70,6 +70,14 @@ class SmallsbM2M:
         paths = self.gen_paths_mc(n_t_days, s1, r, q, v) if self.paths is None else self.paths[:, :n_t_days + 1]
         kout_dates_index_t = self.classify_path(paths, obs_dates_t, s_kout)
         kout_periods_yr = kout_periods_map[kout_dates_index_t]
+
+        avg_period = np.sum(kout_periods_yr - (op_days / N_DAYS_A_YEAR)) + (
+                e_date - value_date).days / N_DAYS_A_YEAR * (N_MC_PATHS - len(kout_periods_yr))
+        avg_period = avg_period / N_MC_PATHS
+        print(f'距今平均结束天数: {avg_period * N_DAYS_A_YEAR}')
+
+        for i in range(0, 12):
+            print(np.sum(kout_dates_index_t == i))
 
         pv = self.valuate(principal, cp_rate, r, funding, kout_periods_yr, op_days, left_days)
         return pv
@@ -89,7 +97,7 @@ class SmallsbM2M:
     def gen_obs_dates(self, s_date, e_date, cool_months=0):
         obs_dates = []
 
-        i = 1 + cool_months
+        i = 1 + (cool_months if cool_months is not None else 0)
         obs_date = s_date + relativedelta(months=i)
         while obs_date <= e_date:
             while obs_date not in self.tdate_set:
@@ -126,10 +134,6 @@ class SmallsbM2M:
         return pvs
 
 
-RESULT_CELL = 'G3'
-BATCH_RESULT_CELL = 'K16'
-
-
 def m2m(sheet_name):
     wb = xw.Book.caller()
     sheet = wb.sheets[sheet_name]
@@ -141,7 +145,7 @@ def m2m(sheet_name):
     sb365 = SmallsbM2M(trading_days)
     pv = sb365.m2m_single_365(principal, S0, s_kout, funding, cp_rate, r, q, v, value_date, s_date, e_date, cool_months)
     print(pv)
-    sheet[RESULT_CELL].value = pv
+    sheet['G3'].value = pv
 
 
 def m2m_batch(sheet_name):
@@ -154,7 +158,7 @@ def m2m_batch(sheet_name):
 
     sb365 = SmallsbM2M(trading_days)
     pvs = sb365.m2m_batch_365(S0, r, q, v, value_date, products_paras)
-    sheet[BATCH_RESULT_CELL].options(transpose=True).value = pvs
+    sheet['K16'].options(transpose=True).value = pvs
 
 
 def main():

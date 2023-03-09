@@ -124,7 +124,7 @@ class LowerBoundTester:
 
 
 if __name__ == '__main__':
-    fp = 'G:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0224\\结构性产品同业发行结构汇总20230222.xlsx'
+    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0310\\结构性产品同业发行结构汇总20230308.xlsx'
     tester = LowerBoundTester(fp)
     results = tester.run()
     print(results)
