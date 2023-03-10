@@ -5,7 +5,7 @@ import scipy.optimize as opt
 
 class SmallSnowBall:
 
-    def __init__(self, s0, r, q, v, months, s_kout, funding):
+    def __init__(self, s0, r, q, v, d_r, months, s_kout, funding):
         self.days_per_mth = 21
         self.days_per_yr = 252
 
@@ -13,6 +13,7 @@ class SmallSnowBall:
         self.r = r  # risk-free annual interest rate
         self.q = q  # dividend
         self.v = v  # 波动率
+        self.d_r = d_r
         self.months = months  # 存续期，单位为月
         self.days = months * self.days_per_mth  # period in day
         self.s_kout = s_kout  # 敲出价
@@ -41,22 +42,21 @@ class SmallSnowBall:
     def valuate(self, coupon_rate, r, funding, kout_periods_yr, kin_period_yr, n_kin):
         principal = 1000
         # knock out
-        coupons = principal * coupon_rate * kout_periods_yr * np.exp(-r * kout_periods_yr)
-        kout_premium = principal * funding * kout_periods_yr * np.exp(-r * kout_periods_yr)
-        pv_kout = np.sum(coupons - kout_premium)
+        kout_profit = principal * (coupon_rate - funding) * kout_periods_yr * np.exp(-r * kout_periods_yr)
+        pv_kout = np.sum(kout_profit)
         # not knock out
-        pv_kin = n_kin * principal * funding * np.exp(-r * kin_period_yr)
+        pv_kin = n_kin * principal * funding * kin_period_yr * np.exp(-r * kin_period_yr)
         return pv_kout - pv_kin
 
     def find_coupon_rate(self, rand_fp):
         trends = self.gen_trends_mc(rand_fp, self.days, self.s0, self.r, self.q, self.v)
         kout_periods_yr = self.classify_trends(trends, self.kout_obs_days, self.s_kout)
         coupon = opt.newton(self.valuate, 0.05, args=(
-            self.r, self.premium, kout_periods_yr, self.months / 12, len(trends) - len(kout_periods_yr)))
+            self.d_r, self.premium, kout_periods_yr, self.months / 12, len(trends) - len(kout_periods_yr)))
         print(f"敲出票息率：{coupon:.6%}")
         return coupon
 
 
 if __name__ == '__main__':
-    sb = SmallSnowBall(s0=1813, r=0.055, q=0.0, v=0.15, months=12, s_kout=1813, funding=0.0265)
+    sb = SmallSnowBall(s0=1813, r=0.055, q=0.0, v=0.15, d_r=0.03, months=9, s_kout=1813, funding=0.0265)
     sb.find_coupon_rate('')

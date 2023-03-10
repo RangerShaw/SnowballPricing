@@ -47,8 +47,10 @@ class SmallsbM2M:
         pv_kout = np.sum(kout_profits)
 
         # not knock out
-        kin_discount_period_yr = left_days / N_DAYS_A_YEAR
-        nkout_losses = (N_MC_PATHS - len(kout_periods_yr)) * principal * funding * np.exp(-r * kin_discount_period_yr)
+        kin_period_yr = left_days / N_DAYS_A_YEAR
+        total_period_yr = (op_days+left_days)/N_DAYS_A_YEAR
+        n_kin = N_MC_PATHS - len(kout_periods_yr)
+        nkout_losses = n_kin * principal * funding * total_period_yr * np.exp(-r * kin_period_yr)
         return (pv_kout - nkout_losses) / N_MC_PATHS
 
     def m2m_365(self, principal, s1, s_kout, funding, cp_rate, r, q, v, value_date, obs_dates, s_date, e_date):
@@ -161,5 +163,12 @@ def m2m_batch(sheet_name):
     sheet['K16'].options(transpose=True).value = pvs
 
 
-def main():
-    pass
+if __name__ == '__main__':
+    wb = xw.Book("myproject.xlsm")
+    sheet = wb.sheets['single']
+    trading_days = wb.sheets['trading_days'].range('A1').expand('down').value
+    [value_date, S0, v, r, q] = sheet['C3:C7'].value
+    [s_date, e_date, funding, cp_rate, s_kout, principal, cool_months] = sheet['F3:F9'].value
+    sb365 = SmallsbM2M(trading_days)
+    pv = sb365.m2m_single_365(principal, S0, s_kout, funding, cp_rate, r, q, v, value_date, s_date, e_date, cool_months)
+    print(f'M2M: {pv}')
