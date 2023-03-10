@@ -100,7 +100,7 @@ class LowerBoundTester:
         is_upside = product['方向'] == '看涨' or product['方向'] == '触入看涨'
         prices, intervals = self.get_prices_intervals(product['标的'], product['期限(月)'])
         n_touch = self.count_touch(prices, intervals, is_upside, product['下端收益触达线'])
-        return (len(intervals[0]) - n_touch) / len(intervals[0])
+        return 1 - n_touch / len(intervals[0])
 
     def bt_snowball(self, product):
         is_upside = product['方向'] == '看涨'
