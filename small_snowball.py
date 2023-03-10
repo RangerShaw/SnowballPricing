@@ -30,27 +30,30 @@ class SmallSnowBall:
         S_all = s0 * np.exp(ln_S)
         return S_all
 
-    def classify_trends(self, trends, kout_obs_days, s_kout):
+    def classify_trends(self, trends, kout_obs_days, s_kout, is_upside=True):
         # knock out
-        kout_bool_matrix = trends[:, kout_obs_days] >= s_kout
+        kout_bool_matrix = trends[:, kout_obs_days] >= s_kout if is_upside else trends[:, kout_obs_days] <= s_kout
+        # kout_bool_matrix = trends[:, kout_obs_days] <= s_kout
         kout_flags = np.any(kout_bool_matrix, axis=1)
         kout_days_index = kout_bool_matrix[kout_flags, :].argmax(axis=1) if kout_flags.any() else []
         kout_period_map = kout_obs_days / self.days_per_yr
         kout_periods_yr = kout_period_map[kout_days_index]
         return kout_periods_yr
 
-    def valuate(self, coupon_rate, r, funding, kout_periods_yr, kin_period_yr, n_kin):
+    def valuate(self, coupon_rate, discount_r, funding, kout_periods_yr, kin_period_yr, n_kin):
         principal = 1000
         # knock out
-        kout_profit = principal * (coupon_rate - funding) * kout_periods_yr * np.exp(-r * kout_periods_yr)
+        kout_profit = principal * (coupon_rate - funding) * kout_periods_yr * np.exp(-discount_r * kout_periods_yr)
         pv_kout = np.sum(kout_profit)
         # not knock out
-        pv_kin = n_kin * principal * funding * kin_period_yr * np.exp(-r * kin_period_yr)
+        pv_kin = n_kin * principal * funding * kin_period_yr * np.exp(-discount_r * kin_period_yr)
         return pv_kout - pv_kin
 
     def find_coupon_rate(self, rand_fp):
         trends = self.gen_trends_mc(rand_fp, self.days, self.s0, self.r, self.q, self.v)
         kout_periods_yr = self.classify_trends(trends, self.kout_obs_days, self.s_kout)
+        print(f'敲出路径条数: {len(kout_periods_yr)}')
+        print(f'平均敲出天数: {np.average(kout_periods_yr) * 365}')
         coupon = opt.newton(self.valuate, 0.05, args=(
             self.d_r, self.premium, kout_periods_yr, self.months / 12, len(trends) - len(kout_periods_yr)))
         print(f"敲出票息率：{coupon:.6%}")
@@ -58,5 +61,5 @@ class SmallSnowBall:
 
 
 if __name__ == '__main__':
-    sb = SmallSnowBall(s0=1813, r=0.055, q=0.0, v=0.15, d_r=0.03, months=9, s_kout=1813, funding=0.0265)
+    sb = SmallSnowBall(s0=1834, r=0.055, q=0.0, v=0.15, d_r=0.024, months=12, s_kout=1834, funding=0.0265)
     sb.find_coupon_rate('')
