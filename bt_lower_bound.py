@@ -73,7 +73,7 @@ class LowerBoundTester:
         n_low = np.sum((ratios < price_range[0]) | (ratios > price_range[1]))
         return n_low / len(ratios)
 
-    def not_kout(self, prices, intervals, is_upside: bool, months, kout_p_ratio):
+    def _not_kout(self, prices, intervals, is_upside: bool, months, kout_p_ratio):
         i_odates = np.linspace(intervals[0], intervals[1], months + 1, axis=1).round().astype(int)
         paths = prices[i_odates[:, 1:]]
         kout_prices = prices[i_odates[:, 0], None] * kout_p_ratio
@@ -83,11 +83,11 @@ class LowerBoundTester:
     def bt_auto_call(self, product):
         is_upside = product['方向'] == '看涨'
         prices, intervals = self.get_prices_intervals(product['标的'], product['期限(月)'])
-        nkout_bool_array = self.not_kout(prices, intervals, is_upside, product['期限(月)'], product['下端收益触达线'])
+        nkout_bool_array = self._not_kout(prices, intervals, is_upside, product['期限(月)'], product['下端收益触达线'])
         n_nkout = nkout_bool_array.sum()
         return n_nkout / len(intervals[0])
 
-    def count_touch(self, prices, intervals, is_upside: bool, strike_p_ratio):
+    def _count_touch(self, prices, intervals, is_upside: bool, strike_p_ratio):
         strike_prices = prices[intervals[0]] * strike_p_ratio
         n_touch = 0
         for i, interval in enumerate(intervals.T):
@@ -99,16 +99,16 @@ class LowerBoundTester:
     def bt_touch(self, product):
         is_upside = product['方向'] == '看涨' or product['方向'] == '触入看涨'
         prices, intervals = self.get_prices_intervals(product['标的'], product['期限(月)'])
-        n_touch = self.count_touch(prices, intervals, is_upside, product['下端收益触达线'])
+        n_touch = self._count_touch(prices, intervals, is_upside, product['下端收益触达线'])
         return 1 - n_touch / len(intervals[0])
 
     def bt_snowball(self, product):
         is_upside = product['方向'] == '看涨'
         prices, intervals = self.get_prices_intervals(product['标的'], product['期限(月)'])
 
-        nkout_bool_array = self.not_kout(prices, intervals, is_upside, product['期限(月)'], 1.0)
+        nkout_bool_array = self._not_kout(prices, intervals, is_upside, product['期限(月)'], 1.0)
         idx_nkout = nkout_bool_array.nonzero()[0]
-        n_kin_nkout = self.count_touch(prices, intervals[:, idx_nkout], not is_upside, product['下端收益触达线'])
+        n_kin_nkout = self._count_touch(prices, intervals[:, idx_nkout], not is_upside, product['下端收益触达线'])
         return n_kin_nkout / len(intervals[0])
 
     def _backtest(self, product):

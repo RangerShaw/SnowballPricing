@@ -61,5 +61,5 @@ class SmallSnowBall:
 
 
 if __name__ == '__main__':
-    sb = SmallSnowBall(s0=1834, r=0.055, q=0.0, v=0.15, d_r=0.024, months=12, s_kout=1834, funding=0.0265)
+    sb = SmallSnowBall(s0=1834, r=0.055, q=0.0, v=0.15, d_r=0.024, months=12, s_kout=1834*0.99, funding=0.0265)
     sb.find_coupon_rate('')

@@ -47,11 +47,11 @@ class SmallsbM2M:
         pv_kout = np.sum(kout_profits)
 
         # not knock out
-        kin_period_yr = left_days / N_DAYS_A_YEAR
+        kin_discount_period_yr = left_days / N_DAYS_A_YEAR
         total_period_yr = (op_days + left_days) / N_DAYS_A_YEAR
         n_kin = N_MC_PATHS - len(kout_periods_yr)
-        nkout_losses = n_kin * principal * funding * total_period_yr * np.exp(-r * kin_period_yr)
-        return (pv_kout - nkout_losses) / N_MC_PATHS
+        pv_nkout = n_kin * principal * -funding * total_period_yr * np.exp(-r * kin_discount_period_yr)
+        return (pv_kout + pv_nkout) / N_MC_PATHS
 
     def m2m_365(self, principal, s1, s_kout, funding, cp_rate, r, q, v, value_date, obs_dates, s_date, e_date):
         op_days = (value_date - s_date).days  # 合约已运行天数
