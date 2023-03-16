@@ -5,11 +5,11 @@ import scipy.optimize as opt
 
 class SmallSnowBall:
 
-    def __init__(self, s0, r, q, v, d_r, months, s_kout, funding):
+    def __init__(self, s0, r, q, v, d_r, months, s_kout, fund, up):
         self.days_per_mth = 21
         self.days_per_yr = 252
 
-        self.s0 = s0  # 期初价，一般为100
+        self.s0 = s0  # 期初价
         self.r = r  # risk-free annual interest rate
         self.q = q  # dividend
         self.v = v  # 波动率
@@ -17,7 +17,8 @@ class SmallSnowBall:
         self.months = months  # 存续期，单位为月
         self.days = months * self.days_per_mth  # period in day
         self.s_kout = s_kout  # 敲出价
-        self.premium = funding  # 期权费，0.01表示名义本金的1%
+        self.premium = fund  # 期权费，0.01表示名义本金的1%
+        self.upside = up
         self.kout_obs_days = np.arange(self.days_per_mth, self.days + 1, self.days_per_mth, dtype=int)
 
     def gen_trends_mc(self, rand_fp, days, s0, r, q, v):
@@ -30,10 +31,9 @@ class SmallSnowBall:
         S_all = s0 * np.exp(ln_S)
         return S_all
 
-    def classify_trends(self, trends, kout_obs_days, s_kout, is_upside=True):
+    def classify_trends(self, trends, kout_obs_days, s_kout, is_upside):
         # knock out
         kout_bool_matrix = trends[:, kout_obs_days] >= s_kout if is_upside else trends[:, kout_obs_days] <= s_kout
-        # kout_bool_matrix = trends[:, kout_obs_days] <= s_kout
         kout_flags = np.any(kout_bool_matrix, axis=1)
         kout_days_index = kout_bool_matrix[kout_flags, :].argmax(axis=1) if kout_flags.any() else []
         kout_period_map = kout_obs_days / self.days_per_yr
@@ -51,7 +51,7 @@ class SmallSnowBall:
 
     def find_coupon_rate(self, rand_fp):
         trends = self.gen_trends_mc(rand_fp, self.days, self.s0, self.r, self.q, self.v)
-        kout_periods_yr = self.classify_trends(trends, self.kout_obs_days, self.s_kout)
+        kout_periods_yr = self.classify_trends(trends, self.kout_obs_days, self.s_kout, self.upside)
         print(f'敲出路径条数: {len(kout_periods_yr)}')
         print(f'平均敲出天数: {np.average(kout_periods_yr) * 365}')
         coupon = opt.newton(self.valuate, 0.05, args=(
@@ -61,5 +61,5 @@ class SmallSnowBall:
 
 
 if __name__ == '__main__':
-    sb = SmallSnowBall(s0=1834, r=0.055, q=0.0, v=0.15, d_r=0.024, months=12, s_kout=1834*0.99, funding=0.0265)
+    sb = SmallSnowBall(s0=1834, r=0.012, q=0.0, v=0.15, d_r=0.024, months=12, s_kout=1834 * 1.0, fund=0.0265, up=True)
     sb.find_coupon_rate('')
