@@ -28,7 +28,7 @@ class LowerBoundTester:
         today = date_sr.iloc[-1]
         print(f'today: {today}')
 
-        for i, (month, year) in enumerate(self.periods):
+        for (month, year) in self.periods:
             period = pd.DateOffset(months=month) if month >= 1 else pd.DateOffset(days=round(28 * month))
             fst_sdate = today - (pd.DateOffset(years=year) if year >= 1 else pd.DateOffset(months=round(year * 12)))
             lst_sdate = today - period
@@ -62,7 +62,7 @@ class LowerBoundTester:
         ratios = self.get_ratios(product)
         low_bound = product['下端收益触达线']
         n_low = np.sum(ratios < low_bound if product['方向'] == '看涨' else ratios > low_bound)
-        return n_low / (len(ratios))
+        return n_low / len(ratios)
 
     def bt_shark_fin(self, product):
         return None if product['方向'] == '两边' else self.bt_plain(product)

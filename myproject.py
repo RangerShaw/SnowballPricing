@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import datetime
 import math
-
 import xlwings as xw
 import numpy as np
 from dateutil.relativedelta import relativedelta

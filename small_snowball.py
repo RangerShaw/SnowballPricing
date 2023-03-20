@@ -22,7 +22,8 @@ class SmallSnowBall:
         self.kout_obs_days = np.arange(self.days_per_mth, self.days + 1, self.days_per_mth, dtype=int)
 
     def gen_trends_mc(self, rand_fp, days, s0, r, q, v):
-        rand = np.random.randn(100000, days)
+        # rand = np.random.randn(100000, days)
+        rand = np.random.default_rng().standard_normal(size=(100000, days))
         mu = r - q
         d_t = 1.0 / self.days_per_yr
         d_ln_S = (mu - 0.5 * v ** 2) * d_t + v * np.sqrt(d_t) * rand
