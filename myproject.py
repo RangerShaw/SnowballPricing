@@ -162,6 +162,34 @@ def m2m_batch(sheet_name):
     sheet['K16'].options(transpose=True).value = pvs
 
 
+def obs_dates(trading_days, s_date, months, cool_months):
+    tdate_set = set(trading_days)
+    dates = np.zeros(months - cool_months, dtype=datetime.datetime)
+    for i in range(0, months - cool_months):
+        obs_date = s_date + relativedelta(months=i + 1 + cool_months)
+        while obs_date not in tdate_set:
+            obs_date += relativedelta(days=1)
+        dates[i] = obs_date
+    return dates
+
+
+def gen_obs_dates(sheet_name):
+    wb = xw.Book.caller()
+    sheet = wb.sheets[sheet_name]
+    [s_date, months, cool_months] = sheet['C3:C5'].value
+    trading_days = wb.sheets['trading_days'].range('A1').expand('down').value
+    cool_months = 0 if not cool_months else int(cool_months)
+
+    if s_date + relativedelta(months=months) > trading_days[-1]:
+        sheet['E3'].value = "超出最长期限"
+    elif months <= cool_months:
+        sheet['E3'].value = "冷静期过长"
+    else:
+        dates = obs_dates(trading_days, s_date, int(months), 0 if not cool_months else int(cool_months))
+        indices = np.arange(1, len(dates) + 1)
+        sheet['E3'].value = np.vstack((indices, dates)).T
+
+
 if __name__ == '__main__':
     # wb = xw.Book("myproject.xlsm")
     # sheet = wb.sheets['single']
@@ -171,4 +199,5 @@ if __name__ == '__main__':
     # sb365 = SmallsbM2M(trading_days)
     # pv = sb365.m2m_single_365(principal, S0, s_kout, funding, cp_rate, r, q, v, value_date, s_date, e_date, cool_months)
     # print(f'M2M: {pv}')
+
     pass
