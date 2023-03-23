@@ -7,9 +7,7 @@ class LowerBoundTester:
 
     def __init__(self, fp: str):
         self.bt_map = {
-            '价差': self.bt_plain,
-            '两区间': self.bt_plain,
-            '三区间': self.bt_plain,
+            '价差': self.bt_plain, '两区间': self.bt_plain, '三区间': self.bt_plain,
             '鲨鱼鳍': self.bt_shark_fin,
             '触碰式': self.bt_touch,
             '区间累计': self.bt_range_accrual,
@@ -23,26 +21,24 @@ class LowerBoundTester:
         self.period_months = np.array(list(self.interval_map.keys()))
 
     def build_intervals(self):
-        interval_map = {}
         date_sr = self.closes_df['日期']
         today = date_sr.iloc[-1]
         print(f'today: {today}')
 
+        interval_map = {}
         for (month, year) in self.periods:
             period = pd.DateOffset(months=month) if month >= 1 else pd.DateOffset(days=round(28 * month))
             fst_sdate = today - (pd.DateOffset(years=year) if year >= 1 else pd.DateOffset(months=round(year * 12)))
             lst_sdate = today - period
             i_fst_sdate = (date_sr >= fst_sdate).argmax()
             i_lst_sdate = (date_sr <= lst_sdate).argmin()
-            intervals = np.arange(i_fst_sdate, i_lst_sdate)
-            intervals.resize((2, len(intervals)), refcheck=False)
+            i_sdates = np.arange(i_fst_sdate, i_lst_sdate)
 
-            edates = date_sr.iloc[intervals[0]] + period
+            edates = date_sr[i_sdates] + period
             bools = date_sr.values >= edates.values[:, None]
-            intervals[1] = np.argmax(bools, axis=1)
-            interval_map[month] = intervals
-            print(len(intervals[0]))
-
+            i_edates = np.argmax(bools, axis=1)
+            interval_map[month] = np.vstack((i_sdates, i_edates))
+            print(len(i_sdates))
         return interval_map
 
     def get_prices_intervals(self, underlying, period):
@@ -125,7 +121,7 @@ class LowerBoundTester:
 
 
 if __name__ == '__main__':
-    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0317\\结构性产品同业发行结构汇总20230315.xlsx'
+    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0324\\结构性产品同业发行结构汇总20230322.xlsx'
     tester = LowerBoundTester(fp)
     results = tester.run()
     print(results)
