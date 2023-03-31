@@ -1,11 +1,12 @@
 import pandas as pd
 import numpy as np
 import openpyxl as op
+import xlwings as xw
 
 
 class LowerBoundTester:
 
-    def __init__(self, fp: str):
+    def __init__(self, fp, products=None, prices=None):
         self.bt_map = {
             '价差': self.bt_plain, '两区间': self.bt_plain, '三区间': self.bt_plain,
             '鲨鱼鳍': self.bt_shark_fin,
@@ -15,8 +16,9 @@ class LowerBoundTester:
             '自动敲入敲出': self.bt_snowball,
         }
         self.periods = [(0.25, 0.25), (0.5, 0.5), (1, 1), (2, 2), (3, 3), (6, 5), (9, 9), (12, 10), (24, 10), (36, 10)]
-        self.products = pd.read_excel(fp, sheet_name='历史发行结构汇总', usecols='H:M', skiprows=2)
-        self.closes_df = pd.read_excel(fp, sheet_name='历史走势')
+        self.products = products if fp is None else pd.read_excel(fp, sheet_name='历史发行结构汇总', usecols='H:M',
+                                                                  skiprows=2)
+        self.closes_df = prices if fp is None else pd.read_excel(fp, sheet_name='历史走势')
         self.interval_map = self.build_intervals()
         self.period_months = np.array(list(self.interval_map.keys()))
 
@@ -70,7 +72,7 @@ class LowerBoundTester:
         return n_low / len(ratios)
 
     def _not_kout(self, prices, intervals, is_upside: bool, months, kout_p_ratio):
-        i_odates = np.linspace(intervals[0], intervals[1], months + 1, axis=1).round().astype(int)
+        i_odates = np.linspace(intervals[0], intervals[1], int(months) + 1, axis=1).round().astype(int)
         paths = prices[i_odates[:, 1:]]
         kout_prices = prices[i_odates[:, 0], None] * kout_p_ratio
         nkout_bool_matrix = paths < kout_prices if is_upside else paths > kout_prices
@@ -120,8 +122,25 @@ class LowerBoundTester:
         return self.products.apply(self._backtest, axis=1)
 
 
+def backtest(sheet_name):
+    wb = xw.Book.caller()
+    # wb = xw.Book('D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0331\\结构性产品同业发行结构汇总20230329.xlsx')
+    sheet = wb.sheets[sheet_name]
+
+    products_data = sheet['F3:N3'].options(expand='down').value
+    prices_data = wb.sheets['历史走势']['A1'].options(expand='table').value
+    products = pd.DataFrame(products_data[1:], columns=products_data[0])
+    prices = pd.DataFrame(prices_data[1:], columns=prices_data[0])
+
+    tester = LowerBoundTester(None, products, prices)
+    results = tester.run()
+    print(results)
+    sheet['O4'].options(index=False, header=False).value = results
+
+
 if __name__ == '__main__':
-    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0324\\结构性产品同业发行结构汇总20230322.xlsx'
+    # backtest('历史发行结构汇总')
+    fp = 'D:\\OneDrive\\Intern\\CIB\\Work\\同业结构\\0331\\结构性产品同业发行结构汇总20230329.xlsx'
     tester = LowerBoundTester(fp)
     results = tester.run()
     print(results)
