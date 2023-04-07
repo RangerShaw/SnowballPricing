@@ -6,7 +6,7 @@ import xlwings as xw
 
 class LowerBoundTester:
 
-    def __init__(self, fp, products=None, prices=None):
+    def __init__(self, fp, prods=None, prices=None):
         self.bt_map = {
             '价差': self.bt_plain, '两区间': self.bt_plain, '三区间': self.bt_plain,
             '鲨鱼鳍': self.bt_shark_fin,
@@ -15,10 +15,10 @@ class LowerBoundTester:
             '自动敲出': self.bt_auto_call,
             '自动敲入敲出': self.bt_snowball,
         }
+        read = fp is not None
         self.periods = [(0.25, 0.25), (0.5, 0.5), (1, 1), (2, 2), (3, 3), (6, 5), (9, 9), (12, 10), (24, 10), (36, 10)]
-        self.products = products if fp is None else pd.read_excel(fp, sheet_name='历史发行结构汇总', usecols='H:M',
-                                                                  skiprows=2)
-        self.closes_df = prices if fp is None else pd.read_excel(fp, sheet_name='历史走势')
+        self.products = pd.read_excel(fp, sheet_name='历史发行结构汇总', usecols='H:M', skiprows=2) if read else prods
+        self.closes_df = pd.read_excel(fp, sheet_name='历史走势') if read else prices
         self.interval_map = self.build_intervals()
         self.period_months = np.array(list(self.interval_map.keys()))
 
